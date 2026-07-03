@@ -1,0 +1,79 @@
+trigger:
+  branches:
+    include:
+      - master
+      - main
+  paths:
+    include:
+      - k8s/**
+      - azure-pipelines.yml
+
+pool: 'Azure Pipelines'
+
+variables:
+  dockerRegistryServiceConnection: 'acr-ong-donation'
+  imageRepository: 'ong-donation-webapi'
+  containerRegistry: 'ongdonationacr.azurecr.io'
+  dockerfilePath: 'ONG.Donation.WebAPI/Dockerfile'
+  tag: '$(Build.BuildId)'
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: 'Build & Push Docker Image'
+  jobs:
+  - job: Build
+    displayName: 'Build Docker Image'
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: 'Build Docker Image'
+      inputs:
+        command: 'build'
+        Dockerfile: $(dockerfilePath)
+        tags: |
+          $(containerRegistry)/$(imageRepository):$(tag)
+          $(containerRegistry)/$(imageRepository):latest
+        arguments: '--build-arg BUILD_NUMBER=$(Build.BuildId)'
+
+    - task: Docker@2
+      displayName: 'Push to ACR'
+      inputs:
+        command: 'push'
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(imageRepository)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Deploy
+  displayName: 'Deploy to Kubernetes'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: 'Deploy ONG.Donation to AKS'
+    steps:
+    - checkout: self
+
+    - task: KubernetesManifest@0
+      displayName: 'Deploy to Kubernetes'
+      inputs:
+        action: 'deploy'
+        kubernetesServiceConnection: 'aks-ong-donation-prod'
+        namespace: 'ong-donation'
+        manifests: |
+          $(Build.SourcesDirectory)/k8s/namespace.yaml
+          $(Build.SourcesDirectory)/k8s/configmap.yaml
+          $(Build.SourcesDirectory)/k8s/secretproviderclass.yaml
+          $(Build.SourcesDirectory)/k8s/deployment.yaml
+          $(Build.SourcesDirectory)/k8s/service.yaml
+          $(Build.SourcesDirectory)/k8s/ingress.yaml
+          $(Build.SourcesDirectory)/k8s/hpa.yaml
+        imagePullSecrets: |
+          acr-secret
+        containers: |
+          $(containerRegistry)/$(imageRepository):$(tag)

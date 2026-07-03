@@ -1,0 +1,211 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ong-donation-webapi-network-policy
+  namespace: ong-donation
+  labels:
+    app: ong-donation-webapi
+spec:
+  podSelector:
+    matchLabels:
+      app: ong-donation-webapi
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Ingress rules
+  ingress:
+  # Allow from nginx-ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nginx-ingress
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  # Allow from monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Egress rules
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Allow to Kubernetes API
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          component: kube-apiserver
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow to RabbitMQ/Service Bus
+  - to:
+    - podSelector:
+        matchLabels:
+          app: rabbitmq
+    ports:
+    - protocol: TCP
+      port: 5672
+    - protocol: TCP
+      port: 5671
+  
+  # Allow to SQL Server
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 1433
+  
+  # Allow to Loki
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app: loki
+    ports:
+    - protocol: TCP
+      port: 3100
+  
+  # Allow external HTTPS (for Key Vault, Application Insights, etc.)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ong-donation-webapi-ingress
+  namespace: ong-donation
+  labels:
+    app: ong-donation-webapi
+    app.kubernetes.io/name: ong-donation-webapi
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: ong-donation-platform
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/rate-limit-status-code: "429"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - donation.ong.com
+    - api.donation.ong.com
+    - www.donation.ong.com
+    secretName: ong-donation-tls
+  
+  rules:
+  # Main API endpoint
+  - host: api.donation.ong.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ong-donation-webapi
+            port:
+              number: 80
+  
+  # Health check endpoint
+  - host: api.donation.ong.com
+    http:
+      paths:
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: ong-donation-webapi
+            port:
+              number: 80
+  
+  # Public transparency endpoint
+  - host: donation.ong.com
+    http:
+      paths:
+      - path: /api/public/campaigns
+        pathType: Prefix
+        backend:
+          service:
+            name: ong-donation-webapi
+            port:
+              number: 80
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: ong-donation-webapi
+            port:
+              number: 80
+  
+  # www subdomain
+  - host: www.donation.ong.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ong-donation-webapi
+            port:
+              number: 80
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ong-donation-tls
+  namespace: ong-donation
+  labels:
+    app: ong-donation-webapi
+spec:
+  secretName: ong-donation-tls
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+  commonName: donation.ong.com
+  dnsNames:
+  - donation.ong.com
+  - api.donation.ong.com
+  - www.donation.ong.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
