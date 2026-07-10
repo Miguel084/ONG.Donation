@@ -30,7 +30,7 @@ spec:
       labels:
         app: ong-donation-webapi
         component: api
-        aadpodidbinding: ong-donation-selector
+        azure.workload.identity/use: "true"
         version: "1.0.0"
       annotations:
         prometheus.io/scrape: "true"
