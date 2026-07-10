@@ -16,85 +16,14 @@ spec:
   
   # Ingress rules
   ingress:
-  # Allow from nginx-ingress controller
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: ingress-nginx
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/name: nginx-ingress
-    ports:
-    - protocol: TCP
-      port: 80
-  
-  # Allow from monitoring
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: monitoring
-    - podSelector:
-        matchLabels:
-          app: prometheus
-    ports:
+  # Allow from any (nginx-ingress, monitoring, etc.)
+  - ports:
     - protocol: TCP
       port: 8080
   
-  # Egress rules
+  # Egress rules - allow all (SQL, Key Vault, Service Bus are external)
   egress:
-  # Allow DNS
-  - to:
-    - namespaceSelector: {}
-    ports:
-    - protocol: UDP
-      port: 53
-  
-  # Allow to Kubernetes API
-  - to:
-    - namespaceSelector: {}
-      podSelector:
-        matchLabels:
-          component: kube-apiserver
-    ports:
-    - protocol: TCP
-      port: 443
-  
-  # Allow to RabbitMQ/Service Bus
-  - to:
-    - podSelector:
-        matchLabels:
-          app: rabbitmq
-    ports:
-    - protocol: TCP
-      port: 5672
-    - protocol: TCP
-      port: 5671
-  
-  # Allow to SQL Server
-  - to:
-    - namespaceSelector: {}
-    ports:
-    - protocol: TCP
-      port: 1433
-  
-  # Allow to Loki
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          name: monitoring
-    - podSelector:
-        matchLabels:
-          app: loki
-    ports:
-    - protocol: TCP
-      port: 3100
-  
-  # Allow external HTTPS (for Key Vault, Application Insights, etc.)
-  - to:
-    - namespaceSelector: {}
-    ports:
-    - protocol: TCP
-      port: 443
+  - {}
 
 ---
 apiVersion: networking.k8s.io/v1
