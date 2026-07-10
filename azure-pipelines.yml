@@ -13,7 +13,7 @@ pool: 'Azure Pipelines'
 variables:
   dockerRegistryServiceConnection: 'acr-ong-donation'
   imageRepository: 'ong-donation-webapi'
-  containerRegistry: 'ongdonationacr.azurecr.io'
+  containerRegistry: 'ongdonationacrp.azurecr.io'
   dockerfilePath: 'ONG.Donation.WebAPI/Dockerfile'
   tag: '$(Build.BuildId)'
   vmImageName: 'ubuntu-latest'
