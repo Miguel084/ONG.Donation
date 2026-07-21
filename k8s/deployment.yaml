@@ -47,7 +47,7 @@ spec:
       
       containers:
       - name: ong-donation-webapi
-        image: ongdonationacrp.azurecr.io/ong-donation-webapi:latest
+        image: __IMAGE__
         imagePullPolicy: Always
         
         # Container security context

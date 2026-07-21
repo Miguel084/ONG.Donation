@@ -151,13 +151,12 @@ steps:
       fi
 
       # 5) Deployment
-      kubectl apply -n $(namespace) -f k8s/deployment.yaml
-
-      # 5) Troca a imagem com TAG IMUTÁVEL
       IMAGE="$(acrName).azurecr.io/$(imageRepository):$(imageTag)"
-      echo "Setting image: $IMAGE"
-      kubectl set image -n $(namespace) deployment/$(containerName) \
-        $(containerName)="$IMAGE"
+
+      echo "Deploying image: $IMAGE"
+
+      sed "s|__IMAGE__|$IMAGE|g" k8s/deployment.yaml | \
+      kubectl apply -n $(namespace) -f -
 
       # 6) Rollout + auditoria
       ROLL_OUT_TIMEOUT="600s"
